@@ -1,0 +1,27 @@
+{
+  "parser": "babel-eslint",
+
+  "env": {
+    "browser": true,
+    "node": true,
+    "mocha": true
+  },
+
+  "extends": "eslint:recommended",
+
+  "globals": {
+    "$": true,
+    "Redux": true
+  },
+
+  "rules": {
+    "semi": [2, "always"],
+    "no-multiple-empty-lines": [2, {"max": 1}],
+    "quotes": [2, "single", "avoid-escape"],
+    "space-infix-ops": [2, {"int32Hint": false}],
+    "object-curly-spacing": [2, "always"],
+    "indent": [2, 2, {"SwitchCase": 1}],
+    "key-spacing": [2, {"beforeColon": false, "afterColon": true}],
+    "no-console": 0
+  }
+}

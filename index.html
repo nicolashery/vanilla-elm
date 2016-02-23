@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+  <link href="style.css" rel="stylesheet" type="text/css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>Vanilla Elm</title>
+</head>
+<body>
+  <div class="app">
+    <form id="form">
+      <div class="form-group" id="email-group">
+        <label for="email">Email address</label>
+        <input type="email" class="form-control" id="email" placeholder="Email">
+        <span class="help-block error-required">Email is required</span>
+        <span class="help-block error-invalid-email">Please enter a valid email</span>
+      </div>
+      <div class="form-group" id="password-group">
+        <label for="password">Password</label>
+        <input type="password" class="form-control" id="password" placeholder="Password">
+        <span class="help-block error-required">Password is required</span>
+      </div>
+      <button type="submit" id="submit" class="btn btn-primary" data-text="Log in" data-loading-text="Logging in...">Log in</button>
+      <div id="login-failed" class="alert alert-danger" role="alert">Wrong email or password</div>
+      <div id="login-success" class="alert alert-success" role="alert">Login success!</div>
+    </form>
+    <p>Hint: mary@example.com/1234</p>
+  </div>
+
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/zepto/1.1.6/zepto.min.js"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/redux/3.3.1/redux.min.js"></script>
+  <script type="text/javascript" src="bundle.js"></script>
+</body>
+</html>

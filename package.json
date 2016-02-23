@@ -1,0 +1,22 @@
+{
+  "name": "vanilla-elm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "webpack-dev-server --devtool eval",
+    "lint": "eslint app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "babel-core": "6.5.2",
+    "babel-eslint": "5.0.0",
+    "babel-loader": "6.2.3",
+    "babel-preset-es2015": "6.5.0",
+    "eslint": "2.2.0",
+    "webpack": "1.12.14",
+    "webpack-dev-server": "1.14.1"
+  }
+}

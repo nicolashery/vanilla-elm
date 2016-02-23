@@ -1,0 +1,39 @@
+.app {
+  max-width: 420px;
+  margin: auto;
+  margin-top: 40px;
+}
+
+form {
+  margin-bottom: 20px;
+}
+
+form .alert {
+  margin-top: 20px;
+}
+
+.error-required,
+.error-invalid-email {
+  display: none;
+}
+
+.has-error.has-error-required .error-required {
+  display: block;
+}
+
+.has-error.has-error-invalid-email .error-invalid-email {
+  display: block;
+}
+
+form .alert-danger,
+form .alert-success {
+  display: none;
+}
+
+form.login-failed .alert-danger {
+  display: block;
+}
+
+form.login-success .alert-success {
+  display: block;
+}
