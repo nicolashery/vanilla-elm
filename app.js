@@ -25,7 +25,7 @@ function validateRequired(value) {
 }
 
 function validateEmail(value) {
-  if( /(.+)@(.+){2,}\.(.+){2,}/.test(value) ){
+  if (/(.+)@(.+){2,}\.(.+){2,}/.test(value)) {
     return null;
   } else {
     return ERRORS.invalidEmail;
@@ -67,7 +67,7 @@ function submitForm(email, password) {
   return { type: SUBMIT_FORM, email, password };
 }
 
-// REDUCERS
+// UPDATE FUNCTION
 // ==============================================
 
 const initialState = {
@@ -83,12 +83,14 @@ const initialState = {
   isLoginSuccess: false
 };
 
-function reducer(state = initialState, action) {
+function update(state = initialState, action) {
   switch (action.type) {
 
     case INIT:
-      action.sideEffect(attachInitialEventListeners);
-      return Object.assign({}, state, { $els: action.$els });
+      return {
+        state: Object.assign({}, state, { $els: action.$els }),
+        effects: [attachInitialEventListeners]
+      };
 
     case CHANGE_EMAIL:
       return applyChangeEmail(state, action);
@@ -106,7 +108,7 @@ function reducer(state = initialState, action) {
       return applyLoginFailed(state, action);
 
     default:
-      return state;
+      return { state: state, effects: [] };
   }
 }
 
@@ -116,14 +118,20 @@ function applyChangeEmail(state, action) {
     email: runValidators([validateRequired, validateEmail], email)
   });
 
+  let effects = [];
   if (state.errors.email !== errors.email) {
-    action.sideEffect(updateValidationClasses);
+    effects.push(updateValidationClasses);
   }
 
-  return Object.assign({}, state, {
+  const new_state = Object.assign({}, state, {
     email: email,
     errors: errors
   });
+
+  return {
+    state: new_state,
+    effects: effects
+  };
 }
 
 function applyChangePassword(state, action) {
@@ -132,14 +140,20 @@ function applyChangePassword(state, action) {
     password: validateRequired(password)
   });
 
+  let effects = [];
   if (state.errors.password !== errors.password) {
-    action.sideEffect(updateValidationClasses);
+    effects.push(updateValidationClasses);
   }
 
-  return Object.assign({}, state, {
+  const new_state = Object.assign({}, state, {
     password: password,
     errors: errors
   });
+
+  return {
+    state: new_state,
+    effects: effects
+  };
 }
 
 function applySubmitForm(state, action) {
@@ -150,18 +164,20 @@ function applySubmitForm(state, action) {
     password: validateRequired(password)
   };
 
+  let effects = [];
+
   if (state.errors.email !== errors.email ||
       state.errors.password !== errors.password) {
-    action.sideEffect(updateValidationClasses);
+    effects.push(updateValidationClasses);
   }
 
   if (!(errors.email || errors.password)) {
-    action.sideEffect(login);
+    effects.push(login);
   }
 
-  action.sideEffect(updateFormClasses);
+  effects.push(updateFormClasses);
 
-  return Object.assign({}, state, {
+  const new_state = Object.assign({}, state, {
     email: email,
     password: password,
     errors: errors,
@@ -169,24 +185,39 @@ function applySubmitForm(state, action) {
     isLoginFailed: false,
     isLoginSuccess: false
   });
+
+  return {
+    state: new_state,
+    effects: effects
+  };
 }
 
-function applyLoginSuccess(state, action) {
-  action.sideEffect(updateFormClasses);
+function applyLoginSuccess(state) {
+  const effects = [updateFormClasses];
 
-  return Object.assign({}, state, {
+  const new_state = Object.assign({}, state, {
     isLoading: false,
     isLoginSuccess: true
   });
+
+  return {
+    state: new_state,
+    effects: effects
+  };
 }
 
-function applyLoginFailed(state, action) {
-  action.sideEffect(updateFormClasses);
+function applyLoginFailed(state) {
+  const effects = [updateFormClasses];
 
-  return Object.assign({}, state, {
+  const new_state = Object.assign({}, state, {
     isLoading: false,
     isLoginFailed: true
   });
+
+  return {
+    state: new_state,
+    effects: effects
+  };
 }
 
 // SIDE EFFECTS
@@ -271,17 +302,7 @@ function login(dispatch, getState) {
 // SETUP
 // ==============================================
 
-const logger = store => next => action => {
-  console.log('dispatching', action);
-  let result = next(action);
-  console.log('next state', store.getState());
-  return result;
-};
-
-const store = Redux.createStore(
-  reducer,
-  Redux.applyMiddleware(logger, actionSideEffectMiddleware)
-);
+const app = createApp(update);
 
 const $els = {
   form: $('#form'),
@@ -292,51 +313,58 @@ const $els = {
   submit: $('#submit')
 };
 
-store.dispatch({ type: INIT, $els: $els });
+app.dispatch({ type: INIT, $els: $els });
 
-window.$els = $els;
-window.store = store;
-
-// LIBS
+// LIB
 // ==============================================
 
-// Inspired by: https://github.com/gregwebs/redux-side-effect
+// Adapted from Redux, adding side effects
+function createApp(update, init) {
+  if (typeof init === 'undefined') {
+    init = { state: undefined, effects: [] };
+  }
 
-function makeSideEffectCollector(sideEffects) {
-  return function sideEffect(...effects) {
-    for (var i in effects){
-      sideEffects.push(effects[i]);
+  var currentState = init.state;
+  var isDispatching = false;
+
+  function getState() {
+    return currentState;
+  }
+
+  function dispatch(action) {
+    if (typeof action.type === 'undefined') {
+      throw new Error(
+        'Actions may not have an undefined "type" property. ' +
+        'Have you misspelled a constant?'
+      );
     }
-  };
-}
 
-function makeSideEffectTimeout(sideEffect) {
-  return function sideEffectTimeout(timeout, ...effects) {
-    return sideEffect(effects.map(eff => (dispatch, getState) => {
-      setTimeout(eff(dispatch, getState), timeout);
-    }));
-  };
-}
-
-function makeDrainSideEffects(sideEffects, dispatch, getState) {
-  return function drainSideEffects(){
-    while (sideEffects.length > 0){
-      sideEffects.shift()(dispatch, getState);
+    if (isDispatching) {
+      throw new Error('An "update" function may not dispatch actions.');
     }
-  };
-}
 
-function actionSideEffectMiddleware({ dispatch, getState }) {
-  const sideEffects = [];
-  const sideEffect = makeSideEffectCollector(sideEffects);
-  const sideEffectTimeout = makeSideEffectTimeout(sideEffect);
-  const drainSideEffects = makeDrainSideEffects(sideEffects, dispatch, getState);
-  return next => action => {
-    console.log('actionSideEffectMiddleware', action);
-    action.sideEffect = sideEffect;
-    action.sideEffectTimeout = sideEffectTimeout;
-    let result = next(action);
-    drainSideEffects();
-    return result;
+    try {
+      isDispatching = true;
+      var result = update(currentState, action);
+      currentState = result.state;
+      runEffects(result.effects);
+    } finally {
+      isDispatching = false;
+    }
+
+    return action;
+  }
+
+  function runEffects(effects) {
+    effects.forEach(eff => eff(dispatch, getState));
+  }
+
+  runEffects(init.effects);
+  dispatch({ type: '__INIT__' });
+
+  return {
+    dispatch,
+    getState,
+    runEffects
   };
 }
