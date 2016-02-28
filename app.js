@@ -32,9 +32,33 @@ function validateEmail(value) {
   }
 }
 
-// Fake Ajax call
-const Ajax = {
-  post(url, data, cb) {
+// DOM element cache
+const ElementCache = {
+  create: function(initialCache) {
+    return initialCache || {};
+  },
+
+  put: function(cache, key, el) {
+    cache[key] = el;
+    return cache;
+  },
+
+  get: function(cache, key) {
+    const el = cache[key];
+    if (!el) {
+      throw new Error(`Could not find element '${key}'`);
+    }
+    return el;
+  }
+};
+
+// Fake Api client
+const Api = {
+  create: function(apiKey) {
+    return { apiKey: apiKey };
+  },
+
+  login(api, data, cb) {
     setTimeout(() => {
       if (!(data.email === 'mary@example.com' && data.password === '1234')) {
         return cb({ error: 'Invalid email or password' });
@@ -71,7 +95,6 @@ function submitForm(email, password) {
 // ==============================================
 
 const initialState = {
-  $els: {},
   email: '',
   password: '',
   errors: {
@@ -223,74 +246,88 @@ function applyLoginFailed(state) {
 // SIDE EFFECTS
 // ==============================================
 
-function attachInitialEventListeners(dispatch, getState) {
-  const { $els } = getState();
+const ELS = {
+  form: '#form',
+  email: '#email',
+  emailGroup: '#email-group',
+  password: '#password',
+  passwordGroup: '#password-group',
+  submit: '#submit'
+};
 
-  $els.email.on('change', (e) => {
+function attachInitialEventListeners(dispatch, getState, getContext) {
+  const { $els } = getContext();
+
+  ElementCache.get($els, ELS.email).on('change', (e) => {
     dispatch(changeEmail(e.target.value));
   });
 
-  $els.password.on('change', (e) => {
+  ElementCache.get($els, ELS.password).on('change', (e) => {
     dispatch(changePassword(e.target.value));
   });
 
-  $els.form.on('submit', (e) => {
+  ElementCache.get($els, ELS.form).on('submit', (e) => {
     e.preventDefault();
-    const email = $els.email.val();
-    const password = $els.password.val();
+    const email = ElementCache.get($els, ELS.email).val();
+    const password = ElementCache.get($els, ELS.password).val();
     dispatch(submitForm(email, password));
   });
 }
 
-function updateValidationClasses(dispatch, getState) {
-  const { $els, errors } = getState();
+function updateValidationClasses(dispatch, getState, getContext) {
+  const { errors } = getState();
+  const { $els } = getContext();
 
   if (errors.email === ERRORS.required) {
-    $els.emailGroup.addClass('has-error has-error-required');
+    ElementCache.get($els, ELS.emailGroup).addClass('has-error has-error-required');
   } else if (errors.email === ERRORS.invalidEmail) {
-    $els.emailGroup.addClass('has-error has-error-invalid-email');
+    ElementCache.get($els, ELS.emailGroup).addClass('has-error has-error-invalid-email');
   } else if (!errors.email) {
-    $els.emailGroup.removeClass('has-error');
-    $els.emailGroup.removeClass('has-error-required');
-    $els.emailGroup.removeClass('has-error-invalid-email');
+    ElementCache.get($els, ELS.emailGroup).removeClass('has-error');
+    ElementCache.get($els, ELS.emailGroup).removeClass('has-error-required');
+    ElementCache.get($els, ELS.emailGroup).removeClass('has-error-invalid-email');
   }
 
   if (errors.password === ERRORS.required) {
-    $els.passwordGroup.addClass('has-error has-error-required');
+    ElementCache.get($els, ELS.passwordGroup).addClass('has-error has-error-required');
   } else if (!errors.password) {
-    $els.passwordGroup.removeClass('has-error');
-    $els.passwordGroup.removeClass('has-error-required');
+    ElementCache.get($els, ELS.passwordGroup).removeClass('has-error');
+    ElementCache.get($els, ELS.passwordGroup).removeClass('has-error-required');
   }
 }
 
-function updateFormClasses(dispatch, getState) {
-  const { $els, isLoading, isLoginSuccess, isLoginFailed } = getState();
+function updateFormClasses(dispatch, getState, getContext) {
+  const { isLoading, isLoginSuccess, isLoginFailed } = getState();
+  const { $els } = getContext();
 
   if (isLoading) {
-    $els.submit.attr('disabled', true);
-    $els.submit.text($els.submit.attr('data-loading-text'));
+    ElementCache.get($els, ELS.submit).attr('disabled', true);
+    const text = ElementCache.get($els, ELS.submit).attr('data-loading-text');
+    ElementCache.get($els, ELS.submit).text(text);
   } else {
-    $els.submit.attr('disabled', null);
-    $els.submit.text($els.submit.attr('data-text'));
+    ElementCache.get($els, ELS.submit).attr('disabled', null);
+    const text = ElementCache.get($els, ELS.submit).attr('data-text');
+    ElementCache.get($els, ELS.submit).text(text);
   }
 
   if (isLoginSuccess) {
-    $els.form.addClass('login-success');
+    ElementCache.get($els, ELS.form).addClass('login-success');
   } else {
-    $els.form.removeClass('login-success');
+    ElementCache.get($els, ELS.form).removeClass('login-success');
   }
 
   if (isLoginFailed) {
-    $els.form.addClass('login-failed');
+    ElementCache.get($els, ELS.form).addClass('login-failed');
   } else {
-    $els.form.removeClass('login-failed');
+    ElementCache.get($els, ELS.form).removeClass('login-failed');
   }
 }
 
-function login(dispatch, getState) {
+function login(dispatch, getState, getContext) {
   const { email, password } = getState();
+  const { api } = getContext();
 
-  Ajax.post('/login', { email, password }, (err) => {
+  Api.login(api, { email, password }, (err) => {
     if (err) {
       return dispatch({ type: LOGIN_FAILED });
     } else {
@@ -302,26 +339,34 @@ function login(dispatch, getState) {
 // SETUP
 // ==============================================
 
-const app = createApp(update);
+const init = { state: undefined, effects: [attachInitialEventListeners] };
+const $els = ElementCache.create({
+  [ELS.form]: $(ELS.form),
+  [ELS.email]: $(ELS.email),
+  [ELS.emailGroup]: $(ELS.emailGroup),
+  [ELS.password]: $(ELS.password),
+  [ELS.passwordGroup]: $(ELS.passwordGroup),
+  [ELS.submit]: $(ELS.submit)
+});
+const api = Api.create('fake-api-key');
+const context = { $els, api };
 
-const $els = {
-  form: $('#form'),
-  email: $('#email'),
-  emailGroup: $('#email-group'),
-  password: $('#password'),
-  passwordGroup: $('#password-group'),
-  submit: $('#submit')
-};
+const app = createApp(update, init, context);
 
-app.dispatch({ type: INIT, $els: $els });
+// For debugging
+window.app = app;
 
 // LIB
 // ==============================================
 
 // Adapted from Redux, adding side effects
-function createApp(update, init) {
+function createApp(update, init, context) {
   if (typeof init === 'undefined') {
     init = { state: undefined, effects: [] };
+  }
+
+  if (typeof context === 'undefined') {
+    context = {};
   }
 
   var currentState = init.state;
@@ -329,6 +374,10 @@ function createApp(update, init) {
 
   function getState() {
     return currentState;
+  }
+
+  function getContext() {
+    return context;
   }
 
   function dispatch(action) {
@@ -356,7 +405,7 @@ function createApp(update, init) {
   }
 
   function runEffects(effects) {
-    effects.forEach(eff => eff(dispatch, getState));
+    effects.forEach(eff => eff(dispatch, getState, getContext));
   }
 
   runEffects(init.effects);
@@ -365,6 +414,7 @@ function createApp(update, init) {
   return {
     dispatch,
     getState,
+    getContext,
     runEffects
   };
 }
