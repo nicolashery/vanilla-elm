@@ -163,18 +163,15 @@ function applyChangeEmail(state, action) {
     }
   });
 
-  let effects = [];
-  if (state.inputs.email.error !== inputs.email.error ||
-      state.inputs.email.touched !== inputs.email.touched) {
-    effects.push(updateValidationClasses);
-  }
-
-  const new_state = Object.assign({}, state, {
+  const newState = Object.assign({}, state, {
     inputs: inputs
   });
 
+  let effects = [];
+  effects = effects.concat(emailValidationEffects(state, newState));
+
   return {
-    state: new_state,
+    state: newState,
     effects: effects
   };
 }
@@ -188,19 +185,67 @@ function applyChangePassword(state, action) {
     }
   });
 
-  let effects = [];
-  if (state.inputs.password.error !== inputs.password.error) {
-    effects.push(updateValidationClasses);
-  }
-
-  const new_state = Object.assign({}, state, {
+  const newState = Object.assign({}, state, {
     inputs: inputs
   });
 
+  let effects = [];
+  effects = effects.concat(passwordValidationEffects(state, newState));
+
   return {
-    state: new_state,
+    state: newState,
     effects: effects
   };
+}
+
+function emailValidationEffects(prevState, nextState) {
+  let effects = [];
+
+  const shouldUpdate = (
+    nextState.inputs.email.error !== prevState.inputs.email.error ||
+    nextState.inputs.email.touched !== prevState.inputs.email.touched
+  );
+
+  if (!shouldUpdate) {
+    return effects;
+  }
+
+  const { inputs, isSubmitted } = nextState;
+  const shouldShowError = (isSubmitted || inputs.email.touched);
+
+  if (shouldShowError && inputs.email.error === ERRORS.required) {
+    effects.push(showEmailRequired);
+  } else if (shouldShowError && inputs.email.error === ERRORS.invalidEmail) {
+    effects.push(showEmailInvalid);
+  } else if (!inputs.email.error) {
+    effects.push(hideEmailError);
+  }
+
+  return effects;
+}
+
+function passwordValidationEffects(prevState, nextState) {
+  let effects = [];
+
+  const shouldUpdate = (
+    nextState.inputs.password.error !== prevState.inputs.password.error ||
+    nextState.inputs.password.touched !== prevState.inputs.password.touched
+  );
+
+  if (!shouldUpdate) {
+    return effects;
+  }
+
+  const { inputs, isSubmitted } = nextState;
+  const shouldShowError = (isSubmitted || inputs.password.touched);
+
+  if (shouldShowError && inputs.password.error === ERRORS.required) {
+    effects.push(showPasswordRequired);
+  } else if (!inputs.password.error) {
+    effects.push(hidePasswordError);
+  }
+
+  return effects;
 }
 
 function applySubmitForm(state, action) {
@@ -217,14 +262,7 @@ function applySubmitForm(state, action) {
     }
   });
 
-  let effects = [updateValidationClasses];
-
-  if (!(inputs.email.error || inputs.password.error)) {
-    effects.push(login);
-    effects.push(updateFormClasses);
-  }
-
-  const new_state = Object.assign({}, state, {
+  const newState = Object.assign({}, state, {
     inputs: inputs,
     isSubmitted: true,
     isLoading: true,
@@ -232,38 +270,75 @@ function applySubmitForm(state, action) {
     isLoginSuccess: false
   });
 
+  let effects = [];
+  effects = effects.concat(emailValidationEffects(state, newState));
+  effects = effects.concat(passwordValidationEffects(state, newState));
+
+  if (!(inputs.email.error || inputs.password.error)) {
+    effects = effects.concat(formStatusEffects(state, newState));
+    effects.push(login);
+  }
+
   return {
-    state: new_state,
+    state: newState,
     effects: effects
   };
 }
 
 function applyLoginSuccess(state) {
-  const effects = [updateFormClasses];
-
-  const new_state = Object.assign({}, state, {
+  const newState = Object.assign({}, state, {
     isLoading: false,
     isLoginSuccess: true
   });
 
+  let effects = [];
+  effects = effects.concat(formStatusEffects(state, newState));
+
   return {
-    state: new_state,
+    state: newState,
     effects: effects
   };
 }
 
 function applyLoginFailed(state) {
-  const effects = [updateFormClasses];
-
-  const new_state = Object.assign({}, state, {
+  const newState = Object.assign({}, state, {
     isLoading: false,
     isLoginFailed: true
   });
 
+  let effects = [];
+  effects = effects.concat(formStatusEffects(state, newState));
+
   return {
-    state: new_state,
+    state: newState,
     effects: effects
   };
+}
+
+function formStatusEffects(prevState, nextState) {
+  const { isLoading, isLoginSuccess, isLoginFailed } = nextState;
+
+  let effects = [];
+
+  if (isLoading) {
+    effects.push(showLoading);
+  } else {
+    effects.push(hideLoading);
+  }
+
+  if (isLoginSuccess) {
+    effects.push(showSuccess);
+  } else {
+    effects.push(hideSuccess);
+  }
+
+  if (isLoginFailed) {
+    effects.push(showFailed);
+  } else {
+    effects.push(hideFailed);
+  }
+
+  return effects;
 }
 
 // SIDE EFFECTS
@@ -297,67 +372,93 @@ function attachInitialEventListeners(dispatch, getState, getContext) {
   });
 }
 
-function updateValidationClasses(dispatch, getState, getContext) {
-  const { inputs, isSubmitted } = getState();
+function showEmailRequired(dispatch, getState, getContext) {
   const { $els } = getContext();
 
-  const shouldShowEmailError = (isSubmitted || inputs.email.touched);
-  if (shouldShowEmailError && inputs.email.error === ERRORS.required) {
-    ElementCache.get($els, ELS.emailGroup).addClass('has-error has-error-required');
-    ElementCache.get($els, ELS.emailGroup).removeClass('has-error-invalid-email');
-  } else if (shouldShowEmailError && inputs.email.error === ERRORS.invalidEmail) {
-    ElementCache.get($els, ELS.emailGroup).addClass('has-error has-error-invalid-email');
-    ElementCache.get($els, ELS.emailGroup).removeClass('has-error-required');
-  } else if (!inputs.email.error) {
-    ElementCache.get($els, ELS.emailGroup).removeClass('has-error');
-    ElementCache.get($els, ELS.emailGroup).removeClass('has-error-required');
-    ElementCache.get($els, ELS.emailGroup).removeClass('has-error-invalid-email');
-  }
-
-  const shouldShowPasswordError = (isSubmitted || inputs.password.touched);
-  if (shouldShowPasswordError && inputs.password.error === ERRORS.required) {
-    ElementCache.get($els, ELS.passwordGroup).addClass('has-error has-error-required');
-  } else if (!inputs.password.error) {
-    ElementCache.get($els, ELS.passwordGroup).removeClass('has-error');
-    ElementCache.get($els, ELS.passwordGroup).removeClass('has-error-required');
-  }
+  ElementCache.get($els, ELS.emailGroup).addClass('has-error has-error-required');
+  ElementCache.get($els, ELS.emailGroup).removeClass('has-error-invalid-email');
 }
 
-function updateFormClasses(dispatch, getState, getContext) {
-  const { isLoading, isLoginSuccess, isLoginFailed } = getState();
+function showEmailInvalid(dispatch, getState, getContext) {
   const { $els } = getContext();
 
-  if (isLoading) {
-    ElementCache.get($els, ELS.submit).attr('disabled', true);
-    const text = ElementCache.get($els, ELS.submit).attr('data-loading-text');
-    ElementCache.get($els, ELS.submit).text(text);
-  } else {
-    ElementCache.get($els, ELS.submit).attr('disabled', null);
-    const text = ElementCache.get($els, ELS.submit).attr('data-text');
-    ElementCache.get($els, ELS.submit).text(text);
-  }
+  ElementCache.get($els, ELS.emailGroup).addClass('has-error has-error-invalid-email');
+  ElementCache.get($els, ELS.emailGroup).removeClass('has-error-required');
+}
 
-  if (isLoginSuccess) {
-    ElementCache.get($els, ELS.form).addClass('login-success');
-  } else {
-    ElementCache.get($els, ELS.form).removeClass('login-success');
-  }
+function hideEmailError(dispatch, getState, getContext) {
+  const { $els } = getContext();
 
-  if (isLoginFailed) {
-    ElementCache.get($els, ELS.form).addClass('login-failed');
-  } else {
-    ElementCache.get($els, ELS.form).removeClass('login-failed');
-  }
+  ElementCache.get($els, ELS.emailGroup).removeClass('has-error');
+  ElementCache.get($els, ELS.emailGroup).removeClass('has-error-required');
+  ElementCache.get($els, ELS.emailGroup).removeClass('has-error-invalid-email');
+}
+
+function showPasswordRequired(dispatch, getState, getContext) {
+  const { $els } = getContext();
+
+  ElementCache.get($els, ELS.passwordGroup).addClass('has-error has-error-required');
+}
+
+function hidePasswordError(dispatch, getState, getContext) {
+  const { $els } = getContext();
+
+  ElementCache.get($els, ELS.passwordGroup).removeClass('has-error');
+  ElementCache.get($els, ELS.passwordGroup).removeClass('has-error-required');
+}
+
+function showLoading(dispatch, getState, getContext) {
+  const { $els } = getContext();
+
+  ElementCache.get($els, ELS.submit).attr('disabled', true);
+  const text = ElementCache.get($els, ELS.submit).attr('data-loading-text');
+  ElementCache.get($els, ELS.submit).text(text);
+}
+
+function hideLoading(dispatch, getState, getContext) {
+  const { $els } = getContext();
+
+  ElementCache.get($els, ELS.submit).attr('disabled', null);
+  const text = ElementCache.get($els, ELS.submit).attr('data-text');
+  ElementCache.get($els, ELS.submit).text(text);
+}
+
+function showSuccess(dispatch, getState, getContext) {
+  const { $els } = getContext();
+
+  ElementCache.get($els, ELS.form).addClass('login-success');
+}
+
+function hideSuccess(dispatch, getState, getContext) {
+  const { $els } = getContext();
+
+  ElementCache.get($els, ELS.form).removeClass('login-success');
+}
+
+function showFailed(dispatch, getState, getContext) {
+  const { $els } = getContext();
+
+  ElementCache.get($els, ELS.form).addClass('login-failed');
+}
+
+function hideFailed(dispatch, getState, getContext) {
+  const { $els } = getContext();
+
+  ElementCache.get($els, ELS.form).removeClass('login-failed');
 }
 
 function login(dispatch, getState, getContext) {
-  const { email, password } = getState();
+  const { inputs } = getState();
   const { api } = getContext();
 
-  Api.login(api, { email, password }, (err) => {
+  Api.login(api, {
+    email: inputs.email.value,
+    password: inputs.password.value
+  }, (err) => {
     if (err) {
       return dispatch(loginFailed());
     } else {
+      console.log('login success');
       return dispatch(loginSuccess());
     }
   });
@@ -365,8 +466,17 @@ function login(dispatch, getState, getContext) {
 
 export const EFFECTS = {
   attachInitialEventListeners,
-  updateValidationClasses,
-  updateFormClasses,
+  showEmailRequired,
+  showEmailInvalid,
+  hideEmailError,
+  showPasswordRequired,
+  hidePasswordError,
+  showLoading,
+  hideLoading,
+  showSuccess,
+  hideSuccess,
+  showFailed,
+  hideFailed,
   login
 };
 

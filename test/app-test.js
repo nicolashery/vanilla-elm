@@ -72,7 +72,7 @@ describe('App', () => {
 
       expect(app.getState().inputs.email.value).toBe('');
       expect(app.getState().inputs.email.error).toBe(ERRORS.required);
-      expect(app.getEffects()).toInclude(EFFECTS.updateValidationClasses);
+      expect(app.getEffects()).toInclude(EFFECTS.showEmailRequired);
     });
   });
 });
