@@ -1,7 +1,7 @@
 // HELPERS
 // ==============================================
 
-const ERRORS = {
+export const ERRORS = {
   required: 'required',
   invalidEmail: 'invalidEmail'
 };
@@ -33,7 +33,7 @@ function validateEmail(value) {
 }
 
 // DOM element cache
-const ElementCache = {
+export const ElementCache = {
   create: function(initialCache) {
     return initialCache || {};
   },
@@ -53,7 +53,7 @@ const ElementCache = {
 };
 
 // Fake Api client
-const Api = {
+export const Api = {
   create: function(apiKey) {
     return { apiKey: apiKey };
   },
@@ -72,7 +72,6 @@ const Api = {
 // ACTIONS
 // ==============================================
 
-const INIT = 'INIT';
 const CHANGE_EMAIL = 'CHANGE_EMAIL';
 const CHANGE_PASSWORD = 'CHANGE_PASSWORD';
 const SUBMIT_FORM = 'SUBMIT_FORM';
@@ -91,29 +90,49 @@ function submitForm(email, password) {
   return { type: SUBMIT_FORM, email, password };
 }
 
+function loginFailed() {
+  return { type: LOGIN_FAILED };
+}
+
+function loginSuccess() {
+  return { type: LOGIN_SUCCESS };
+}
+
+export const ACTIONS = {
+  changeEmail,
+  changePassword,
+  submitForm,
+  loginFailed,
+  loginSuccess
+};
+
 // UPDATE FUNCTION
 // ==============================================
 
-const initialState = {
-  email: '',
-  password: '',
-  errors: {
-    email: ERRORS.required,
-    password: ERRORS.invalidEmail
+export const init = {
+  state: {
+    inputs: {
+      email: {
+        value: '',
+        error: ERRORS.required,
+        touched: false
+      },
+      password: {
+        value: '',
+        error: ERRORS.required,
+        touched: false
+      }
+    },
+    isSubmitted: false,
+    isLoading: false,
+    isLoginFailed: false,
+    isLoginSuccess: false
   },
-  isLoading: false,
-  isLoginFailed: false,
-  isLoginSuccess: false
+  effects: [attachInitialEventListeners]
 };
 
-function update(state = initialState, action) {
+export function update(state, action) {
   switch (action.type) {
-
-    case INIT:
-      return {
-        state: Object.assign({}, state, { $els: action.$els }),
-        effects: [attachInitialEventListeners]
-      };
 
     case CHANGE_EMAIL:
       return applyChangeEmail(state, action);
@@ -136,19 +155,22 @@ function update(state = initialState, action) {
 }
 
 function applyChangeEmail(state, action) {
-  const email = action.value;
-  const errors = Object.assign({}, state.errors, {
-    email: runValidators([validateRequired, validateEmail], email)
+  const inputs = Object.assign({}, state.inputs, {
+    email: {
+      value: action.value,
+      error: runValidators([validateRequired, validateEmail], action.value),
+      touched: true
+    }
   });
 
   let effects = [];
-  if (state.errors.email !== errors.email) {
+  if (state.inputs.email.error !== inputs.email.error ||
+      state.inputs.email.touched !== inputs.email.touched) {
     effects.push(updateValidationClasses);
   }
 
   const new_state = Object.assign({}, state, {
-    email: email,
-    errors: errors
+    inputs: inputs
   });
 
   return {
@@ -158,19 +180,21 @@ function applyChangeEmail(state, action) {
 }
 
 function applyChangePassword(state, action) {
-  const password = action.value;
-  const errors = Object.assign({}, state.errors, {
-    password: validateRequired(password)
+  const inputs = Object.assign({}, state.inputs, {
+    password: {
+      value: action.value,
+      error: validateRequired(action.value),
+      touched: true
+    }
   });
 
   let effects = [];
-  if (state.errors.password !== errors.password) {
+  if (state.inputs.password.error !== inputs.password.error) {
     effects.push(updateValidationClasses);
   }
 
   const new_state = Object.assign({}, state, {
-    password: password,
-    errors: errors
+    inputs: inputs
   });
 
   return {
@@ -180,30 +204,29 @@ function applyChangePassword(state, action) {
 }
 
 function applySubmitForm(state, action) {
-  const email = action.email;
-  const password = action.password;
-  const errors = {
-    email: runValidators([validateRequired, validateEmail], email),
-    password: validateRequired(password)
-  };
+  const inputs = Object.assign({}, state.inputs, {
+    email: {
+      value: action.email,
+      error: runValidators([validateRequired, validateEmail], action.email),
+      touched: state.inputs.email.touched
+    },
+    password: {
+      value: action.password,
+      error: validateRequired(action.password),
+      touched: state.inputs.password.touched
+    }
+  });
 
-  let effects = [];
+  let effects = [updateValidationClasses];
 
-  if (state.errors.email !== errors.email ||
-      state.errors.password !== errors.password) {
-    effects.push(updateValidationClasses);
-  }
-
-  if (!(errors.email || errors.password)) {
+  if (!(inputs.email.error || inputs.password.error)) {
     effects.push(login);
+    effects.push(updateFormClasses);
   }
-
-  effects.push(updateFormClasses);
 
   const new_state = Object.assign({}, state, {
-    email: email,
-    password: password,
-    errors: errors,
+    inputs: inputs,
+    isSubmitted: true,
     isLoading: true,
     isLoginFailed: false,
     isLoginSuccess: false
@@ -246,7 +269,7 @@ function applyLoginFailed(state) {
 // SIDE EFFECTS
 // ==============================================
 
-const ELS = {
+export const ELS = {
   form: '#form',
   email: '#email',
   emailGroup: '#email-group',
@@ -275,22 +298,26 @@ function attachInitialEventListeners(dispatch, getState, getContext) {
 }
 
 function updateValidationClasses(dispatch, getState, getContext) {
-  const { errors } = getState();
+  const { inputs, isSubmitted } = getState();
   const { $els } = getContext();
 
-  if (errors.email === ERRORS.required) {
+  const shouldShowEmailError = (isSubmitted || inputs.email.touched);
+  if (shouldShowEmailError && inputs.email.error === ERRORS.required) {
     ElementCache.get($els, ELS.emailGroup).addClass('has-error has-error-required');
-  } else if (errors.email === ERRORS.invalidEmail) {
+    ElementCache.get($els, ELS.emailGroup).removeClass('has-error-invalid-email');
+  } else if (shouldShowEmailError && inputs.email.error === ERRORS.invalidEmail) {
     ElementCache.get($els, ELS.emailGroup).addClass('has-error has-error-invalid-email');
-  } else if (!errors.email) {
+    ElementCache.get($els, ELS.emailGroup).removeClass('has-error-required');
+  } else if (!inputs.email.error) {
     ElementCache.get($els, ELS.emailGroup).removeClass('has-error');
     ElementCache.get($els, ELS.emailGroup).removeClass('has-error-required');
     ElementCache.get($els, ELS.emailGroup).removeClass('has-error-invalid-email');
   }
 
-  if (errors.password === ERRORS.required) {
+  const shouldShowPasswordError = (isSubmitted || inputs.password.touched);
+  if (shouldShowPasswordError && inputs.password.error === ERRORS.required) {
     ElementCache.get($els, ELS.passwordGroup).addClass('has-error has-error-required');
-  } else if (!errors.password) {
+  } else if (!inputs.password.error) {
     ElementCache.get($els, ELS.passwordGroup).removeClass('has-error');
     ElementCache.get($els, ELS.passwordGroup).removeClass('has-error-required');
   }
@@ -329,40 +356,27 @@ function login(dispatch, getState, getContext) {
 
   Api.login(api, { email, password }, (err) => {
     if (err) {
-      return dispatch({ type: LOGIN_FAILED });
+      return dispatch(loginFailed());
     } else {
-      return dispatch({ type: LOGIN_SUCCESS });
+      return dispatch(loginSuccess());
     }
   });
 }
 
-// SETUP
-// ==============================================
-
-const init = { state: undefined, effects: [attachInitialEventListeners] };
-const $els = ElementCache.create({
-  [ELS.form]: $(ELS.form),
-  [ELS.email]: $(ELS.email),
-  [ELS.emailGroup]: $(ELS.emailGroup),
-  [ELS.password]: $(ELS.password),
-  [ELS.passwordGroup]: $(ELS.passwordGroup),
-  [ELS.submit]: $(ELS.submit)
-});
-const api = Api.create('fake-api-key');
-const context = { $els, api };
-
-const app = createApp(update, init, context);
-
-// For debugging
-window.app = app;
+export const EFFECTS = {
+  attachInitialEventListeners,
+  updateValidationClasses,
+  updateFormClasses,
+  login
+};
 
 // LIB
 // ==============================================
 
 // Adapted from Redux, adding side effects
-function createApp(update, init, context) {
+export function createApp(update, init, context, options = {}) {
   if (typeof init === 'undefined') {
-    init = { state: undefined, effects: [] };
+    init = { state: {}, effects: [] };
   }
 
   if (typeof context === 'undefined') {
@@ -404,17 +418,21 @@ function createApp(update, init, context) {
     return action;
   }
 
-  function runEffects(effects) {
+  let runEffects = function runEffects(effects) {
     effects.forEach(eff => eff(dispatch, getState, getContext));
+  };
+  if (options.mockRunEffects) {
+    runEffects = options.mockRunEffects;
   }
 
-  runEffects(init.effects);
-  dispatch({ type: '__INIT__' });
+  function start() {
+    runEffects(init.effects);
+  }
 
   return {
     dispatch,
     getState,
     getContext,
-    runEffects
+    start
   };
 }
